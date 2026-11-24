@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>초등학교 동아리 신청 시스템</title>
+  <!-- Tailwind CSS (디자인용) -->
+  <script src="https://tailwindcss.com"></script>
+  <!-- Supabase JS 클라이언트 -->
+  <script src="https://jsdelivr.net"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans">
+
+  <div class="max-w-4xl mx-auto p-4 sm:p-8">
+    <!-- 헤더 -->
+    <header class="mb-8 text-center">
+      <h1 class="text-3xl font-bold text-indigo-600 mb-2">🏫 초등학교 동아리 신청</h1>
+      <p class="text-slate-600 text-sm">동아리당 최대 정원은 20명이며, 변경 시 기존 신청을 취소한 후 다시 신청해야 합니다.</p>
+    </header>
+
+    <!-- 1. 학생 정보 입력 및 내 신청 조회 영역 -->
+    <section class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 mb-8">
+      <h2 class="text-lg font-semibold mb-4 border-b pb-2">1. 학생 정보 입력</h2>
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+        <div>
+          <label class="block text-xs font-medium text-slate-500 mb-1">학년 (1~6)</label>
+          <select id="grade" class="w-full border border-slate-300 rounded-lg p-2.5 focus:outline-none focus:border-indigo-500">
+            <option value="1">1학년</option>
+            <option value="2">2학년</option>
+            <option value="3">3학년</option>
+            <option value="4">4학년</option>
+            <option value="5">5학년</option>
+            <option value="6">6학년</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-500 mb-1">반</label>
+          <input type="number" id="classNum" min="1" placeholder="예: 1" class="w-full border border-slate-300 rounded-lg p-2.5 focus:outline-none focus:border-indigo-500">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-500 mb-1">번호</label>
+          <input type="number" id="studentNum" min="1" placeholder="예: 15" class="w-full border border-slate-300 rounded-lg p-2.5 focus:outline-none focus:border-indigo-500">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-500 mb-1">이름</label>
+          <input type="text" id="studentName" placeholder="홍길동" class="w-full border border-slate-300 rounded-lg p-2.5 focus:outline-none focus:border-indigo-500">
+        </div>
+      </div>
+
+      <div class="flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-50 p-4 rounded-lg">
+        <div id="myStatus" class="text-sm text-slate-600">
+          학년, 반, 번호를 입력하고 <strong>내 신청 조회</strong>를 눌러주세요.
+        </div>
+        <button onclick="checkMyApplication()" class="w-full sm:w-auto bg-slate-800 hover:bg-slate-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition">
+          내 신청 조회
+        </button>
+      </div>
+    </section>
+
+    <!-- 2. 동아리 목록 및 신청 영역 -->
+    <section>
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-lg font-semibold">2. 동아리 선택</h2>
+        <button onclick="loadData()" class="text-xs text-indigo-600 hover:underline">🔄 현황 새로고침</button>
+      </div>
+      
+      <!-- 동아리 카드 그리드 -->
+      <div id="clubList" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div class="col-span-full text-center py-10 text-slate-400">데이터를 불러오는 중입니다...</div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    // =========================================================================
+    // [필수 설정] 본인의 Supabase 프로젝트 URL과 anon public key를 입력하세요.
+    // =========================================================================
+    const SUPABASE_URL = 'https://fmyzldgcpyzemtysksoe.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_5eMYsGsMGUI_-RMuZs04Yg_bUvstK-N ';
+    
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    let clubsData = [];
+    let applicationsData = [];
+
+    // 페이지 로드 시 데이터 불러오기
+    window.addEventListener('DOMContentLoaded', loadData);
+
+    // 동아리 및 신청 현황 전체 조회
+    async function loadData() {
+      try {
+        // 1. 동아리 목록 조회
+        const { data: clubs, error: clubsError } = await supabaseClient
+          .from('clubs')
+          .select('*')
+          .order('id', { ascending: true });
+
+        if (clubsError) throw clubsError;
+
+        // 2. 전체 신청 내역 조회 (인원수 카운트 및 내 신청 확인용)
+        const { data: apps, error: appsError } = await supabaseClient
+          .from('applications')
+          .select('*');
+
+        if (appsError) throw appsError;
+
+        clubsData = clubs;
+        applicationsData = apps;
+        renderClubs();
+      } catch (err) {
+        console.error(err);
+        document.getElementById('clubList').innerHTML = 
+          `<div class="col-span-full text-center py-10 text-red-500">데이터를 불러오지 못했습니다. Supabase 설정을 확인해주세요.</div>`;
+      }
+    }
+
+    // 동아리 카드 화면 렌더링
+    function renderClubs() {
+      const container = document.getElementById('clubList');
+      container.innerHTML = '';
+
+      clubsData.forEach(club => {
+        // 해당 동아리의 현재 신청 인원 계산
+        const currentCount = applicationsData.filter(app => app.club_id === club.id).length;
+        const isFull = currentCount >= club.max_capacity;
+
+        const card = document.createElement('div');
+        card.className = `bg-white p-5 rounded-xl shadow-sm border ${isFull ? 'border-slate-200 opacity-75' : 'border-slate-200 hover:border-indigo-300'} flex flex-col justify-between transition`;
+
+        card.innerHTML = `
+          <div>
+            <div class="flex justify-between items-start mb-2">
+              <h3 class="text-lg font-bold text-slate-800">${club.name}</h3>
+              <span class="text-xs font-semibold px-2.5 py-1 rounded-full ${isFull ? 'bg-red-100 text-red-700' : 'bg-indigo-50 text-indigo-700'}">
+                ${currentCount} / ${club.max_capacity}명
+              </span>
+            </div>
+            <p class="text-sm text-slate-500 mb-4">📍 장소: ${club.location}</p>
+          </div>
+          <button 
+            onclick="applyClub(${club.id}, '${club.name}')" 
+            ${isFull ? 'disabled' : ''}
+            class="w-full py-2.5 rounded-lg text-sm font-medium transition ${
+              isFull 
+                ? 'bg-slate-100 text-slate-400 cursor-not-allowed' 
+                : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+            }">
+            ${isFull ? '정원 마감' : '신청하기'}
+          </button>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    // 입력값 유효성 검사 헬퍼
+    function getStudentInput(requireName = true) {
+      const grade = parseInt(document.getElementById('grade').value);
+      const classNum = parseInt(document.getElementById('classNum').value);
+      const studentNum = parseInt(document.getElementById('studentNum').value);
+      const studentName = document.getElementById('studentName').value.trim();
+
+      if (!grade || !classNum || !studentNum) {
+        alert('학년, 반, 번호를 모두 입력해주세요.');
+        return null;
+      }
+      if (requireName && !studentName) {
+        alert('학생 이름을 입력해주세요.');
+        return null;
+      }
+      return { grade, classNum, studentNum, studentName };
+    }
+
+    // 내 신청 내역 조회
+    async function checkMyApplication() {
+      const student = getStudentInput(false);
+      if (!student) return;
+
+      await loadData(); // 최신 데이터 동기화
+
+      const myApp = applicationsData.find(
+        app => app.grade === student.grade && app.class_num === student.classNum && app.student_num === student.studentNum
+      );
+
+      const statusEl = document.getElementById('myStatus');
+
+      if (myApp) {
+        const club = clubsData.find(c => c.id === myApp.club_id);
+        const clubName = club ? club.name : '알 수 없는 동아리';
+        statusEl.innerHTML = `
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="text-indigo-700 font-semibold">✅ [${myApp.student_name}] 학생은 '${clubName}'에 신청되어 있습니다.</span>
+            <button onclick="cancelApplication(${myApp.id})" class="bg-red-500 hover:bg-red-600 text-white text-xs px-2.5 py-1 rounded transition">
+              신청 취소하기
+            </button>
+          </div>
+        `;
+      } else {
+        statusEl.innerHTML = `<span class="text-slate-600">ℹ️ 아직 신청한 동아리가 없습니다. 아래에서 동아리를 선택해주세요.</span>`;
+      }
+    }
+
+    // 동아리 신청하기
+    async function applyClub(clubId, clubName) {
+      const student = getStudentInput(true);
+      if (!student) return;
+
+      if (!confirm(`${student.grade}학년 ${student.classNum}반 ${student.studentNum}번 ${student.studentName} 학생,\n'${clubName}' 동아리를 신청하시겠습니까?`)) {
+        return;
+      }
+
+      const { error } = await supabaseClient
+        .from('applications')
+        .insert([{
+          club_id: clubId,
+          grade: student.grade,
+          class_num: student.classNum,
+          student_num: student.studentNum,
+          student_name: student.studentName
+        }]);
+
+      if (error) {
+        // PostgreSQL 트리거 에러(정원 초과) 또는 UNIQUE 제약 조건 위반(중복 신청) 처리
+        if (error.message.includes('최대 정원')) {
+          alert(`신청 실패: ${error.message}`);
+        } else if (error.code === '23505') {
+          alert('신청 실패: 이미 신청한 동아리가 있습니다. 변경하려면 먼저 [내 신청 조회]에서 기존 신청을 취소해주세요.');
+        } else {
+          alert(`오류가 발생했습니다: ${error.message}`);
+        }
+      } else {
+        alert(`'${clubName}' 신청이 완료되었습니다!`);
+        await checkMyApplication();
+      }
+    }
+
+    // 기존 신청 취소하기 (동아리 변경을 위한 삭제)
+    async function cancelApplication(appId) {
+      if (!confirm('정말 기존 동아리 신청을 취소하시겠습니까?\n취소 후 다른 동아리를 다시 신청할 수 있습니다.')) {
+        return;
+      }
+
+      const { error } = await supabaseClient
+        .from('applications')
+        .delete()
+        .eq('id', appId);
+
+      if (error) {
+        alert(`취소 중 오류가 발생했습니다: ${error.message}`);
+      } else {
+        alert('신청이 취소되었습니다. 이제 다른 동아리를 신청할 수 있습니다.');
+        await checkMyApplication();
+      }
+    }
+  </script>
+</body>
+</html>
