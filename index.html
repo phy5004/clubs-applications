@@ -4,21 +4,18 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>초등학교 동아리 신청 시스템</title>
-  <!-- Tailwind CSS -->
   <script src="https://tailwindcss.com"></script>
-  <!-- Supabase JS 클라이언트 -->
   <script src="https://jsdelivr.net"></script>
 </head>
 <body class="bg-slate-50 text-slate-800 font-sans">
 
   <div class="max-w-4xl mx-auto p-4 sm:p-8">
-    <!-- 헤더 -->
     <header class="mb-8 text-center">
       <h1 class="text-3xl font-bold text-indigo-600 mb-2">🏫 초등학교 동아리 신청</h1>
       <p class="text-slate-600 text-sm">동아리당 최대 정원은 20명이며, 변경 시 기존 신청을 취소한 후 다시 신청해야 합니다.</p>
     </header>
 
-    <!-- 1. 학생 정보 입력 및 내 신청 조회 영역 -->
+    <!-- 1. 학생 정보 입력 및 내 신청 조회 -->
     <section class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 mb-8">
       <h2 class="text-lg font-semibold mb-4 border-b pb-2">1. 학생 정보 입력</h2>
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
@@ -57,14 +54,13 @@
       </div>
     </section>
 
-    <!-- 2. 동아리 목록 및 신청 영역 -->
+    <!-- 2. 동아리 목록 및 신청 -->
     <section>
       <div class="flex justify-between items-center mb-4">
         <h2 class="text-lg font-semibold">2. 동아리 선택</h2>
         <button onclick="loadData()" class="text-xs text-indigo-600 hover:underline">🔄 현황 새로고침</button>
       </div>
       
-      <!-- 동아리 카드 그리드 -->
       <div id="clubList" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <div class="col-span-full text-center py-10 text-slate-400">데이터를 불러오는 중입니다...</div>
       </div>
@@ -73,22 +69,29 @@
 
   <script>
     // =========================================================================
-    // [필수 수정] 아래 두 줄에 본인의 Supabase 프로젝트 URL과 anon public key를 넣으세요.
-    // 위치: Supabase 대시보드 -> Project Settings -> API
+    // [필수 수정] 아래 두 줄의 작은따옴표(' ') 안에 본인의 값을 넣어주세요.
     // =========================================================================
-    const SUPABASE_URL = 'https://YOUR_PROJECT_ID.supabase.co';
-    const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
-    
-    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const SUPABASE_URL = 'https://fmyzldgcpyzemtysksoe.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_5eMYsGsMGUI_-RMuZs04Yg_bUvstK-N ';
 
+    const container = document.getElementById('clubList');
+    let supabaseClient = null;
     let clubsData = [];
     let applicationsData = [];
 
-    // 페이지 열릴 때 자동으로 동아리 목록 및 신청 현황 불러오기
-    window.addEventListener('DOMContentLoaded', loadData);
+    // 초기 연결 점검 및 실행
+    if (typeof supabase === 'undefined') {
+      container.innerHTML = '<div class="col-span-full text-center py-8 text-red-600 font-bold bg-red-50 rounded-lg">❌ 인터넷 또는 학교 네트워크에서 Supabase 접속이 차단되었습니다.</div>';
+    } else if (SUPABASE_URL.includes('YOUR_PROJECT_ID') || SUPABASE_ANON_KEY.includes('YOUR_SUPABASE_ANON_KEY')) {
+      container.innerHTML = '<div class="col-span-full text-center py-8 text-red-600 font-bold bg-red-50 rounded-lg">❌ 코드 안의 SUPABASE_URL과 SUPABASE_ANON_KEY를 본인 값으로 바꿔주세요!</div>';
+    } else {
+      supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      loadData();
+    }
 
-    // DB에서 동아리 목록과 전체 신청 내역 조회
+    // 데이터 불러오기
     async function loadData() {
+      if (!supabaseClient) return;
       try {
         const { data: clubs, error: clubsError } = await supabaseClient
           .from('clubs')
@@ -103,26 +106,24 @@
 
         if (appsError) throw appsError;
 
-        clubsData = clubs;
-        applicationsData = apps;
+        clubsData = clubs || [];
+        applicationsData = apps || [];
         renderClubs();
       } catch (err) {
-        console.error('데이터 조회 에러:', err);
-        document.getElementById('clubList').innerHTML = 
-          `<div class="col-span-full text-center py-10 text-red-500">
-            데이터를 불러오지 못했습니다.<br>
-            <span class="text-xs text-slate-500">상단 코드의 SUPABASE_URL과 SUPABASE_ANON_KEY가 올바른지 확인해주세요. (${err.message})</span>
+        container.innerHTML = 
+          `<div class="col-span-full text-center py-8 text-red-600 bg-red-50 rounded-lg p-4">
+            <p class="font-bold mb-1">❌ 데이터베이스 연결 실패</p>
+            <p class="text-sm">원인: ${err.message}</p>
           </div>`;
       }
     }
 
-    // 동아리 카드 UI 그리기
+    // 동아리 목록 그리기
     function renderClubs() {
-      const container = document.getElementById('clubList');
       container.innerHTML = '';
 
       if (clubsData.length === 0) {
-        container.innerHTML = `<div class="col-span-full text-center py-10 text-slate-500">등록된 동아리가 없습니다.</div>`;
+        container.innerHTML = '<div class="col-span-full text-center py-10 text-slate-500">등록된 동아리가 없습니다. (Supabase clubs 테이블을 확인해주세요)</div>';
         return;
       }
 
@@ -158,7 +159,7 @@
       });
     }
 
-    // 입력칸 확인 함수
+    // 입력값 확인
     function getStudentInput(requireName = true) {
       const grade = parseInt(document.getElementById('grade').value);
       const classNum = parseInt(document.getElementById('classNum').value);
@@ -176,7 +177,7 @@
       return { grade, classNum, studentNum, studentName };
     }
 
-    // 내 신청 내역 조회
+    // 내 신청 조회
     async function checkMyApplication() {
       const student = getStudentInput(false);
       if (!student) return;
@@ -205,7 +206,7 @@
       }
     }
 
-    // 동아리 신청하기
+    // 동아리 신청
     async function applyClub(clubId, clubName) {
       const student = getStudentInput(true);
       if (!student) return;
@@ -238,22 +239,12 @@
       }
     }
 
-    // 기존 신청 취소하기 (삭제 후 재신청 방식)
+    // 신청 취소
     async function cancelApplication(appId) {
       if (!confirm('정말 기존 동아리 신청을 취소하시겠습니까?\n취소 후 다른 동아리를 다시 신청할 수 있습니다.')) {
         return;
       }
 
       const { error } = await supabaseClient
-        .from('applications')
-        .delete()
-        .eq('id', appId);
 
-      if (error) {
-        alert(`취소 중 오류가 발생했습니다: ${error.message}`);
-      } else {
-        alert('신청이 취소되었습니다. 이제 다른 동아리를 신청할 수 있습니다.');
-        await checkMyApplication();
-      }
-    }
 
